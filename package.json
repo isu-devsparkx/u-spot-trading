@@ -6,9 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --experimental-strip-types --test src/lib/__tests__/*.test.ts",
+    "sweep": "node scripts/lifecycle-sweeper.mjs",
+    "engine:cron": "node scripts/run-engine-cron.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "lucide-react": "^1.48.0",
     "next": "16.3.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"

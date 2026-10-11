@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/signals/lifecycle?check=true",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

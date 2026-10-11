@@ -1,0 +1,49 @@
+name: 24/7 U-SPOT Signal Engine & Sweeper
+
+on:
+  schedule:
+    # Runs every 5 minutes 24/7 around the clock (100% free on GitHub Actions)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Optional override URL (e.g. https://your-project.vercel.app)'
+        required: false
+        default: ''
+
+concurrency:
+  group: signal-sweeper
+  cancel-in-progress: false
+
+jobs:
+  run-autonomous-cycle:
+    name: Autonomous Market Scan & Trade Sweeper
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Execute Autonomous Signal Cycle
+        run: |
+          TARGET="${{ github.event.inputs.target_url }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="${{ secrets.VERCEL_APP_URL || secrets.BASE_URL }}"
+          fi
+
+          if [ -z "$TARGET" ]; then
+            echo "::warning:: Neither VERCEL_APP_URL nor BASE_URL secret is defined in GitHub repository secrets."
+            echo "Please add secret VERCEL_APP_URL (e.g. https://your-app.vercel.app) in Settings -> Secrets and variables -> Actions."
+            exit 0
+          fi
+
+          echo "Target Base URL: $TARGET"
+          BASE_URL="$TARGET" node scripts/run-engine-cron.mjs --once
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
