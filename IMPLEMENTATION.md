@@ -1420,6 +1420,14 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
         - Updated `.gitignore` and `.env.example` with clear instructions for `BASE_URL`, `CRON_SECRET`, and `GEMINI_API_KEY`.
       - **Verification**: 363/363 unit tests passing (148 suites), Next.js production build (`npm run build`) compiling cleanly with 0 TypeScript/Turbopack errors.
 
+    - **Architectural Refinement — React Child Invariant & Trade Score Breakdown Sanitization**:
+      - **Problem Evaluated**: React threw `Objects are not valid as a React child (found: object with keys {source, verdict, keyRisks, aiRationale, evaluatedAt, keyStrengths, confidenceScore, regimeAlignment, historicalContextLesson})` when opening signal details (`/signals/[id]` and `/history/[id]`).
+      - **Root Cause Identified**: When persisting signals to Supabase in `mapSignalToDbRow`, metadata objects (including `ai_analysis`, `is_ai_generated`, and `mtf_analysis`) were merged into `trade_score_breakdown` JSONB. When retrieved via `mapDbRowToSignalRecord`, `row.trade_score_breakdown` contained `ai_analysis`. In `SignalDetailPage` (`src/app/history/[id]/page.tsx`), the factor breakdown iterated with `Object.entries(signal.tradeScoreBreakdown).filter(([k]) => k !== 'total')` and rendered `{score}` directly. When `factor` was `'ai_analysis'`, `{score}` was the `AiSignalAnalysis` object, crashing React child rendering.
+      - **Fix Applied**:
+        - **Data Store Sanitization (`src/lib/services/signal-store.ts`)**: In `mapDbRowToSignalRecord`, strictly sanitized `tradeScoreBreakdown` to only map numeric factor weights (`trend, momentum, volume, structure, liquidity, volatility, regime, total`), completely purging nested metadata objects from factor entries. In `mapSignalToDbRow`, explicitly partitioned numeric factors.
+        - **UI Child Guardrails (`src/app/history/[id]/page.tsx`)**: Guarded factor breakdown with `typeof v === 'number' && !isNaN(v)`. Added a dedicated AI Officer Audit card displaying verdict, confidence score, rationale, and key risks safely.
+      - **Verification**: 363/363 unit tests passing, production build compiling cleanly with 0 TypeScript/Turbopack errors.
+
 ---
 
 ## 5. Maintenance & Update Protocol

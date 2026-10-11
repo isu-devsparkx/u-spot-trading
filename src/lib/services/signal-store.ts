@@ -331,7 +331,14 @@ export function mapSignalToDbRow(signal: Signal | SignalHistoryRecord): Record<s
     confirmation_condition: signal.confirmationCondition ?? null,
     rationale: signal.rationale ?? null,
     trade_score_breakdown: {
-      ...(signal.tradeScoreBreakdown ?? {}),
+      trend: signal.tradeScoreBreakdown?.trend ?? 0,
+      momentum: signal.tradeScoreBreakdown?.momentum ?? 0,
+      volume: signal.tradeScoreBreakdown?.volume ?? 0,
+      structure: signal.tradeScoreBreakdown?.structure ?? 0,
+      liquidity: signal.tradeScoreBreakdown?.liquidity ?? 0,
+      volatility: signal.tradeScoreBreakdown?.volatility ?? 0,
+      regime: signal.tradeScoreBreakdown?.regime ?? 0,
+      total: signal.tradeScoreBreakdown?.total ?? 0,
       ...(signal.aiAnalysis ? { ai_analysis: signal.aiAnalysis } : {}),
       ...(signal.isAiGenerated ? { is_ai_generated: true } : {}),
       ...(history?.trailingStopPrice ? { trailing_stop_price: history.trailingStopPrice } : {}),
@@ -388,7 +395,20 @@ export function mapDbRowToSignalRecord(row: Record<string, unknown>): SignalHist
     exchange: row.exchange ? String(row.exchange) : undefined,
     confirmationCondition: row.confirmation_condition ? String(row.confirmation_condition) : undefined,
     rationale: row.rationale ? String(row.rationale) : undefined,
-    tradeScoreBreakdown: (row.trade_score_breakdown as Signal['tradeScoreBreakdown']) ?? undefined,
+    tradeScoreBreakdown: (() => {
+      if (!row.trade_score_breakdown || typeof row.trade_score_breakdown !== 'object') return undefined;
+      const raw = row.trade_score_breakdown as Record<string, unknown>;
+      return {
+        trend: typeof raw.trend === 'number' ? raw.trend : Number(raw.trend ?? 0),
+        momentum: typeof raw.momentum === 'number' ? raw.momentum : Number(raw.momentum ?? 0),
+        volume: typeof raw.volume === 'number' ? raw.volume : Number(raw.volume ?? 0),
+        structure: typeof raw.structure === 'number' ? raw.structure : Number(raw.structure ?? 0),
+        liquidity: typeof raw.liquidity === 'number' ? raw.liquidity : Number(raw.liquidity ?? 0),
+        volatility: typeof raw.volatility === 'number' ? raw.volatility : Number(raw.volatility ?? 0),
+        regime: typeof raw.regime === 'number' ? raw.regime : Number(raw.regime ?? 0),
+        total: typeof raw.total === 'number' ? raw.total : Number(raw.total ?? 0),
+      };
+    })(),
     taSummary: row.ta_summary ? String(row.ta_summary) : undefined,
     actualEntry: row.actual_entry !== null && row.actual_entry !== undefined ? Number(row.actual_entry) : null,
     dca1Hit: Boolean(row.dca1_hit),

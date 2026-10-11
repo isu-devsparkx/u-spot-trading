@@ -43,6 +43,7 @@ import {
   ArrowUpRight,
   PieChart,
   CheckCircle2,
+  Zap,
 } from 'lucide-react';
 
 interface PageProps {
@@ -1177,6 +1178,26 @@ export default function SignalDetailPage({ params }: PageProps) {
                       {signal.rationale || signal.taSummary || 'Multi-factor alignment confirmed.'}
                     </p>
                   </div>
+
+                  {signal.aiAnalysis && (
+                    <div className="bg-purple-950/20 border border-purple-500/25 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono uppercase text-purple-300 font-bold flex items-center gap-1.5">
+                          <Zap size={11} className="text-purple-400" />
+                          AI Officer Audit ({signal.aiAnalysis.source === 'GEMINI' ? 'Gemini 2.5 Flash' : 'Quantitative Gatekeeper'})
+                        </span>
+                        <span className="text-[10px] font-mono text-purple-300 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/30">
+                          {signal.aiAnalysis.confidenceScore}% Confidence • {signal.aiAnalysis.verdict}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">{signal.aiAnalysis.aiRationale}</p>
+                      {signal.aiAnalysis.keyRisks && signal.aiAnalysis.keyRisks.length > 0 && (
+                        <p className="text-[10px] text-amber-300/90 pt-1 font-mono">
+                          Key Risk: {signal.aiAnalysis.keyRisks[0]}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {signal.tradeScoreBreakdown && (
@@ -1186,24 +1207,27 @@ export default function SignalDetailPage({ params }: PageProps) {
                     </p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                       {Object.entries(signal.tradeScoreBreakdown)
-                        .filter(([k]) => k !== 'total')
-                        .map(([factor, score]) => (
-                          <div
-                            key={factor}
-                            className="bg-[var(--surface-2)]/40 rounded-lg p-2.5 border border-[var(--glass-border)]/40"
-                          >
-                            <div className="flex justify-between items-center text-[11px] mb-1">
-                              <span className="capitalize text-slate-400">{factor}</span>
-                              <span className="font-mono font-bold text-slate-200">{score}</span>
+                        .filter(([k, v]) => k !== 'total' && typeof v === 'number' && !isNaN(v))
+                        .map(([factor, score]) => {
+                          const numScore = Number(score);
+                          return (
+                            <div
+                              key={factor}
+                              className="bg-[var(--surface-2)]/40 rounded-lg p-2.5 border border-[var(--glass-border)]/40"
+                            >
+                              <div className="flex justify-between items-center text-[11px] mb-1">
+                                <span className="capitalize text-slate-400">{factor}</span>
+                                <span className="font-mono font-bold text-slate-200">{numScore}</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-cyan-400 rounded-full"
+                                  style={{ width: `${Math.min(100, Math.max(0, numScore))}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-cyan-400 rounded-full"
-                                style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
                   </div>
                 )}
