@@ -1,14 +1,10 @@
-// ─── U-SPOT Signal Lifecycle Tracking API ────────────────────────────
-// Phase 9: Signal Lifecycle Tracking
-// Spec Sections: 15, 17, 18, 41 (/api/signals/lifecycle)
-// Checks active signals against live market prices and updates lifecycle state
-
 import { NextRequest, NextResponse } from 'next/server';
 import {
   processActiveSignalsLifecycle,
   evaluateSignalLifecycleStep,
 } from '@/lib/services/lifecycle-service';
 import { getSignals, getSignalById } from '@/lib/services/signal-store';
+import { requireWorkerOrAdmin } from '@/lib/auth-guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +13,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const triggerCheck = searchParams.get('check') === 'true';
 
+    // State-changing sweep execution requires Worker or Admin authorization
     if (triggerCheck) {
+      const auth = requireWorkerOrAdmin(request);
+      if (!auth.isAuthorized) {
+        return auth.errorResponse || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+      }
+
       const summary = await processActiveSignalsLifecycle();
       return NextResponse.json({
         success: true,
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Return current active signals overview
+    // Return current active signals overview (safe read-only inspection)
     const { records: allSignals } = await getSignals({ limit: 100 });
 
     const activeSignals = allSignals.filter(
@@ -74,10 +76,20 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Phase A Authorization: Sweeping trade lifecycles requires Worker token or Administrator session
+    const auth = requireWorkerOrAdmin(request);
+    if (!auth.isAuthorized) {
+      return auth.errorResponse || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const { signalId, tick, mockPrices } = body;
 
-    // Single signal evaluation mode (for testing / manual price injection)
+    // In production, strictly ignore client-supplied mockPrices to prevent artificial lifecycle manipulation
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.APP_ENV === 'test';
+    const safeMockPrices = isTestEnv ? mockPrices : undefined;
+
+    // Single signal step mode (only permitted in test environment or for administrator simulation)
     if (signalId && tick && typeof tick.price === 'number') {
       const signal = await getSignalById(signalId);
       if (!signal) {
@@ -99,8 +111,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Batch evaluation across all pending/active signals
-    const summary = await processActiveSignalsLifecycle(mockPrices);
+    // Batch evaluation across all pending/active signals using live Binance spot prices
+    const summary = await processActiveSignalsLifecycle(safeMockPrices);
 
     return NextResponse.json({
       success: true,

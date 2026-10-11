@@ -9,6 +9,8 @@ import type {
   Ticker24h,
   Timeframe,
   MarketDataStatus,
+  CandleValidationResult,
+  MarketDataProvenance,
 } from '../../types/index.ts';
 
 /** Primary and fallback public Binance REST endpoints */
@@ -344,6 +346,217 @@ export async function fetchKlines(
 
   setInCache(cacheKey, klines);
   return klines;
+}
+
+/** Error thrown when market data cannot be obtained from live provider */
+export class MarketDataUnavailableError extends Error {
+  public readonly symbol: string;
+  public readonly reason: string;
+  constructor(symbol: string, reason: string) {
+    super(`Market data unavailable for ${symbol}: ${reason}`);
+    this.name = 'MarketDataUnavailableError';
+    this.symbol = symbol;
+    this.reason = reason;
+  }
+}
+
+/** Error thrown when market data violates numerical or integrity constraints */
+export class MarketDataValidationError extends Error {
+  public readonly symbol: string;
+  public readonly reason: string;
+  constructor(symbol: string, reason: string) {
+    super(`Market data validation failed for ${symbol}: ${reason}`);
+    this.name = 'MarketDataValidationError';
+    this.symbol = symbol;
+    this.reason = reason;
+  }
+}
+
+export interface ValidateCandlesOptions {
+  minCandles?: number;
+  timeframe?: Timeframe;
+  maxStalenessMs?: number;
+  allowIncompleteLastBar?: boolean;
+}
+
+/**
+ * Validates candlestick data for numerical validity, temporal ordering, and freshness.
+ * Fails closed on any inconsistency (high < low, non-positive price, non-sequential timestamps, stale data).
+ */
+export function validateCandles(
+  candles: OHLCV[],
+  options: ValidateCandlesOptions = {}
+): CandleValidationResult {
+  const minCandles = options.minCandles ?? 30;
+  const timeframe = options.timeframe ?? '15m';
+
+  if (!Array.isArray(candles) || candles.length === 0) {
+    return {
+      isValid: false,
+      candles: [],
+      provenance: 'REAL_PROVIDER',
+      checkedCount: 0,
+      error: 'Candles array is empty or undefined',
+    };
+  }
+
+  if (candles.length < minCandles) {
+    return {
+      isValid: false,
+      candles,
+      provenance: 'REAL_PROVIDER',
+      checkedCount: candles.length,
+      error: `Insufficient candle count: received ${candles.length}, minimum required is ${minCandles}`,
+    };
+  }
+
+  let prevTimestamp = -1;
+
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+
+    // Timestamp verification
+    if (!Number.isFinite(c.timestamp) || c.timestamp <= 0) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} has invalid timestamp: ${c.timestamp}`,
+      };
+    }
+
+    if (i > 0 && c.timestamp <= prevTimestamp) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} timestamp (${c.timestamp}) is out of order or duplicate (previous: ${prevTimestamp})`,
+      };
+    }
+    prevTimestamp = c.timestamp;
+
+    // Price numeric checks
+    if (
+      !Number.isFinite(c.open) || c.open <= 0 ||
+      !Number.isFinite(c.high) || c.high <= 0 ||
+      !Number.isFinite(c.low) || c.low <= 0 ||
+      !Number.isFinite(c.close) || c.close <= 0
+    ) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} contains non-positive or non-finite price values (O:${c.open}, H:${c.high}, L:${c.low}, C:${c.close})`,
+      };
+    }
+
+    // Geometry checks
+    if (c.high < c.low) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} has invalid geometry: high (${c.high}) < low (${c.low})`,
+      };
+    }
+
+    if (c.high < c.open || c.high < c.close) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} has invalid high: high (${c.high}) is lower than open (${c.open}) or close (${c.close})`,
+      };
+    }
+
+    if (c.low > c.open || c.low > c.close) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} has invalid low: low (${c.low}) is higher than open (${c.open}) or close (${c.close})`,
+      };
+    }
+
+    // Volume checks
+    if (!Number.isFinite(c.volume) || c.volume < 0) {
+      return {
+        isValid: false,
+        candles,
+        provenance: 'REAL_PROVIDER',
+        checkedCount: i + 1,
+        error: `Candle #${i} has invalid negative or non-finite volume: ${c.volume}`,
+      };
+    }
+  }
+
+  // Freshness check against latest candle
+  const latestCandle = candles[candles.length - 1];
+  const now = Date.now();
+  const tfDurationMs: Record<Timeframe, number> = {
+    '5m': 5 * 60 * 1000,
+    '15m': 15 * 60 * 1000,
+    '1h': 60 * 60 * 1000,
+    '4h': 4 * 60 * 60 * 1000,
+    '1d': 24 * 60 * 60 * 1000,
+  };
+  const duration = tfDurationMs[timeframe] || 15 * 60 * 1000;
+  // Maximum delay allowed: 2 bars duration + 5 min publication grace
+  const maxDelay = options.maxStalenessMs ?? (duration * 2 + 5 * 60 * 1000);
+
+  if (now - latestCandle.timestamp > maxDelay) {
+    return {
+      isValid: false,
+      candles,
+      provenance: 'REAL_PROVIDER',
+      checkedCount: candles.length,
+      isStale: true,
+      error: `Candle data is stale: latest candle timestamp is ${new Date(latestCandle.timestamp).toISOString()} (${Math.round((now - latestCandle.timestamp) / 60000)}m ago; max allowed is ${Math.round(maxDelay / 60000)}m)`,
+    };
+  }
+
+  return {
+    isValid: true,
+    candles,
+    provenance: 'REAL_PROVIDER',
+    checkedCount: candles.length,
+  };
+}
+
+/**
+ * Fetch and strictly validate live Binance klines.
+ * Fails closed: throws MarketDataValidationError or MarketDataUnavailableError if invalid or unreachable.
+ */
+export async function fetchValidatedKlines(
+  symbol: string,
+  interval: Timeframe = '15m',
+  limit: number = 80,
+  options?: ValidateCandlesOptions
+): Promise<CandleValidationResult> {
+  try {
+    const rawKlines = await fetchKlines(symbol, interval, limit);
+    const validation = validateCandles(rawKlines, {
+      minCandles: Math.min(30, limit),
+      timeframe: interval,
+      ...options,
+    });
+    if (!validation.isValid) {
+      throw new MarketDataValidationError(symbol, validation.error || 'Candle validation failed');
+    }
+    return validation;
+  } catch (err: unknown) {
+    if (err instanceof MarketDataValidationError) {
+      throw err;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    throw new MarketDataUnavailableError(symbol, message);
+  }
 }
 
 /** Raw Binance Depth response */

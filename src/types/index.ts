@@ -182,6 +182,21 @@ export type MarketDataStatus =
   | 'LOW_LIQUIDITY'
   | 'UNSAFE_MARKET';
 
+export type MarketDataProvenance =
+  | 'REAL_PROVIDER'
+  | 'TEST_FIXTURE'
+  | 'SYNTHETIC_OFFLINE';
+
+/** Candle validation report */
+export interface CandleValidationResult {
+  isValid: boolean;
+  candles: OHLCV[];
+  provenance: MarketDataProvenance;
+  checkedCount: number;
+  error?: string;
+  isStale?: boolean;
+}
+
 /** Standard OHLCV candlestick bar */
 export interface OHLCV {
   timestamp: number; // Unix timestamp in ms
@@ -192,6 +207,7 @@ export interface OHLCV {
   volume: number;
   quoteVolume: number;
   trades?: number;
+  isComplete?: boolean;
 }
 
 /** Order book level [price, quantity] */
@@ -507,6 +523,9 @@ export interface Signal {
   trailingStopPrice?: number | null;
   // Phase 42: Auto-Adaptive Volatility ATR Sizing & Dynamic Targets
   adaptivePlan?: AdaptiveTargetPlan;
+  // Phase A: Provenance & Safety
+  dataProvenance?: MarketDataProvenance;
+  isSynthetic?: boolean;
 }
 
 /** Phase 25: Multi-Timeframe Confluence Types */

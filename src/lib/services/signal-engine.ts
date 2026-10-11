@@ -16,6 +16,7 @@ import type {
   OrderBook,
   SetupEvaluation,
   MultiTimeframeAnalysis,
+  MarketDataProvenance,
 } from '../../types/index.ts';
 import { calculatePositionSize, getDefaultRiskForGrade } from '../risk-engine.ts';
 import { runTechnicalAnalysis } from '../ta/index.ts';
@@ -819,6 +820,8 @@ export function generateSignalFromCandidate(params: {
   weights?: SignalWeights;
   signalIdOverride?: string;
   timestamp?: number;
+  dataProvenance?: MarketDataProvenance;
+  isSynthetic?: boolean;
 }): Signal {
   const {
     candidate,
@@ -828,6 +831,8 @@ export function generateSignalFromCandidate(params: {
     weights = DEFAULT_SIGNAL_WEIGHTS,
     signalIdOverride,
     timestamp = Date.now(),
+    dataProvenance = 'REAL_PROVIDER',
+    isSynthetic = false,
   } = params;
 
   // 1. Calculate multi-factor Trade Score
@@ -968,6 +973,8 @@ export function generateSignalFromCandidate(params: {
     tradeScoreBreakdown: breakdown,
     taSummary: ta.summary,
     mtfAnalysis,
+    dataProvenance: isSynthetic ? 'SYNTHETIC_OFFLINE' : dataProvenance,
+    isSynthetic: Boolean(isSynthetic || dataProvenance === 'SYNTHETIC_OFFLINE'),
   };
 }
 
@@ -1044,7 +1051,7 @@ export function evaluateSignalsForCandidates(
   const signals: Signal[] = [];
 
   for (const candidate of candidates) {
-    // Generate synthetic or fetched klines for analysis
+    // Generate synthetic klines for offline analysis / testing
     const candles = generateSyntheticOHLCV(candidate.price, candidate.change24h);
     const ta = runTechnicalAnalysis(candidate.symbol, candles, '15m', null);
 
@@ -1053,6 +1060,8 @@ export function evaluateSignalsForCandidates(
       ta,
       walletBalance,
       weights,
+      dataProvenance: 'SYNTHETIC_OFFLINE',
+      isSynthetic: true,
     });
 
     signals.push(signal);

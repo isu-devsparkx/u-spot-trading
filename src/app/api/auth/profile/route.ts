@@ -2,19 +2,25 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { userService } from '@/lib/services/user-service';
+import { requireAuth, verifyCsrf } from '@/lib/auth-guard';
 
 export const dynamic = 'force-dynamic';
 
 export async function PUT(request: NextRequest) {
   try {
-    const userId = request.cookies.get('uspot_user_id')?.value;
-
-    if (!userId) {
+    if (!verifyCsrf(request)) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized. Please log in first.' },
-        { status: 401 }
+        { success: false, error: 'Forbidden. CSRF origin mismatch.' },
+        { status: 403 }
       );
     }
+
+    const auth = requireAuth(request);
+    if (!auth.isAuthorized || !auth.session) {
+      return auth.errorResponse || NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = auth.session.userId;
 
     const body = await request.json();
     const { name, telegramChatId, telegramEnabled, alertPreferences, watchlistSymbols } = body;

@@ -11,6 +11,8 @@ import {
 } from '@/lib/services/smart-order-execution';
 import type { SmartExecutionAlgorithm } from '@/types';
 
+import { requireAuth, verifyCsrf } from '@/lib/auth-guard';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
@@ -41,6 +43,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!verifyCsrf(req)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. CSRF origin mismatch.' },
+        { status: 403 }
+      );
+    }
+
+    const auth = requireAuth(req);
+    if (!auth.isAuthorized) {
+      return auth.errorResponse || NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+
     const body = await req.json();
     const action = body.action || 'CREATE';
 

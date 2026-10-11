@@ -4,11 +4,10 @@
 
 import { NextResponse } from 'next/server';
 import { getMarketUniverse } from '@/lib/services/market-universe';
-import { fetchAllTickers24h, fetchKlines, fetchOrderBook } from '@/lib/services/binance-service';
+import { fetchAllTickers24h, fetchValidatedKlines, fetchOrderBook } from '@/lib/services/binance-service';
 import { scanMarketUniverse } from '@/lib/services/scanner-service';
 import {
   generateSignalFromCandidate,
-  generateSyntheticOHLCV,
   DEFAULT_SIGNAL_WEIGHTS,
 } from '@/lib/services/signal-engine';
 import { runTechnicalAnalysis, evaluateMultiTimeframeConfluence } from '@/lib/ta';
@@ -98,22 +97,22 @@ export async function GET(request: Request) {
         let klines1h: OHLCV[] | null = null;
         let orderBook = null;
 
-        // Fetch real Binance klines (15m + 1h) and order book for top candidates; fall back to synthetic
+        // Phase A Safety Rule: Real provider market data only. Fail-closed on missing/invalid candles.
         try {
-          if (i < 8) {
-            const [fetchedKlines, fetchedDepth, fetched1h] = await Promise.all([
-              fetchKlines(candidate.symbol, '15m', 80),
-              fetchOrderBook(candidate.symbol, 20).catch(() => null),
-              fetchKlines(candidate.symbol, '1h', 50).catch(() => null),
-            ]);
-            klines = fetchedKlines;
-            orderBook = fetchedDepth;
-            klines1h = fetched1h;
-          } else {
-            klines = generateSyntheticOHLCV(candidate.price, candidate.change24h, 80);
-          }
-        } catch {
-          klines = generateSyntheticOHLCV(candidate.price, candidate.change24h, 80);
+          const [valKlines, fetchedDepth, fetched1h] = await Promise.all([
+            fetchValidatedKlines(candidate.symbol, '15m', 80),
+            fetchOrderBook(candidate.symbol, 20).catch(() => null),
+            fetchValidatedKlines(candidate.symbol, '1h', 50).then((v) => v.candles).catch(() => null),
+          ]);
+          klines = valKlines.candles;
+          orderBook = fetchedDepth;
+          klines1h = fetched1h;
+        } catch (fetchErr) {
+          // Fail closed: skip candidate without generating any signal or alert
+          console.warn(
+            `[/api/signals] Skipping ${candidate.symbol}: Live market data unavailable (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)})`
+          );
+          continue;
         }
 
         const ta = runTechnicalAnalysis(candidate.symbol, klines, '15m', orderBook);
@@ -332,15 +331,16 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < scanResult.candidates.length; i++) {
       const candidate = scanResult.candidates[i];
-      let klines;
+      let klines: OHLCV[];
+      // Phase A Safety Rule: Real provider market data only in custom evaluation.
       try {
-        if (i < 8) {
-          klines = await fetchKlines(candidate.symbol, '15m', 80);
-        } else {
-          klines = generateSyntheticOHLCV(candidate.price, candidate.change24h, 80);
-        }
-      } catch {
-        klines = generateSyntheticOHLCV(candidate.price, candidate.change24h, 80);
+        const valKlines = await fetchValidatedKlines(candidate.symbol, '15m', 80);
+        klines = valKlines.candles;
+      } catch (fetchErr) {
+        console.warn(
+          `[/api/signals POST] Skipping ${candidate.symbol}: Live market data unavailable (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)})`
+        );
+        continue;
       }
 
       const ta = runTechnicalAnalysis(candidate.symbol, klines, '15m', null);

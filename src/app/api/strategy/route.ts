@@ -17,6 +17,8 @@ import {
   strategyParamsToVersionRecord,
 } from '@/lib/services/strategy-service';
 
+import { requireAdmin, verifyCsrf } from '@/lib/auth-guard';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -58,10 +60,17 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    if (!verifyCsrf(request)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. CSRF origin mismatch.' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
     const { type, version, parameter, parameters, versionName } = body;
 
-    // 1. Validate Parameters
+    // 1. Validate Parameters (read-only validation calculation)
     if (type === 'validate' && parameters) {
       const validation = validateStrategyParameters(parameters);
       return NextResponse.json({
@@ -70,7 +79,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Save Strategy Version (from StrategyResearchParameters or StrategyVersionRecord)
+    // 2. Modifying or activating strategy configuration strictly requires Administrator role
+    const auth = requireAdmin(request);
+    if (!auth.isAuthorized) {
+      return auth.errorResponse || NextResponse.json({ success: false, error: 'Administrator role required' }, { status: 403 });
+    }
+
+    // Save Strategy Version (from StrategyResearchParameters or StrategyVersionRecord)
     if (type === 'version') {
       let recordToSave = version;
       if (!recordToSave && parameters) {

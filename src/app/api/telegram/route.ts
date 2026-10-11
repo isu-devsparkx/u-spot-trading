@@ -8,6 +8,8 @@ import {
 } from '@/lib/services/telegram-service';
 import type { TelegramAlertConfig } from '@/types';
 
+import { requireAdmin, verifyCsrf } from '@/lib/auth-guard';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
@@ -31,6 +33,18 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyCsrf(request)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. CSRF origin mismatch.' },
+        { status: 403 }
+      );
+    }
+
+    const auth = requireAdmin(request);
+    if (!auth.isAuthorized) {
+      return auth.errorResponse || NextResponse.json({ success: false, error: 'Administrator role required' }, { status: 403 });
+    }
+
     const body = await request.json().catch(() => ({}));
     const updates: Partial<TelegramAlertConfig> = {};
 

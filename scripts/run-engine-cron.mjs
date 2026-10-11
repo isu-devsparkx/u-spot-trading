@@ -27,7 +27,7 @@ const BASE_URL = (
   `http://${HOST}:${PORT}`
 ).replace(/\/$/, '');
 
-const CRON_SECRET = process.env.CRON_SECRET || '';
+const CRON_SECRET = process.env.CRON_SECRET || 'dev-cron-secret';
 const INTERVAL_MS = parseInt(process.env.SWEEP_INTERVAL_MS || '60000', 10);
 
 console.log('═══════════════════════════════════════════════════════════════');

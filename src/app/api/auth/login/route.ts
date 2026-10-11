@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { userService } from '@/lib/services/user-service';
+import { createSessionToken, attachSessionCookie } from '@/lib/services/session-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,12 +33,9 @@ export async function POST(request: NextRequest) {
       message: `Welcome back, ${user.name}!`,
     });
 
-    // Set auth cookie
-    response.cookies.set('uspot_user_id', user.id, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      sameSite: 'lax',
-    });
+    // Generate cryptographically signed session token and attach HttpOnly cookie
+    const token = createSessionToken(user);
+    attachSessionCookie(response, token);
 
     return response;
   } catch (err: unknown) {

@@ -2,6 +2,7 @@
 // Manages user profiles, role-based access (admin vs trader), and personal Telegram routing
 
 import { createHash, randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { getSupabaseClient } from './supabase.ts';
 import type { UserProfile, UserRole } from '../../types/index.ts';
 import { DEFAULT_WATCHLIST_SYMBOLS } from './binance-websocket.ts';
@@ -47,7 +48,7 @@ class UserStore {
   }
 
   private hashPassword(password: string): string {
-    return createHash('sha256').update(password.trim()).digest('hex');
+    return bcrypt.hashSync(password.trim(), 10);
   }
 
   private seedDefaultUsers() {
@@ -207,12 +208,9 @@ class UserStore {
       throw new Error('An account with this email address already exists.');
     }
 
-    // First user or explicitly assigned role
-    const assignedRole: UserRole =
-      params.role ||
-      (this.users.size === 0 || normalizedEmail.includes('admin')
-        ? 'admin'
-        : 'user');
+    // Phase A Security: Registration defaults strictly to 'user' role.
+    // Administrator privileges cannot be claimed via email string or request body.
+    const assignedRole: UserRole = 'user';
 
     const newUser: StoredUser = {
       id: `usr_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
@@ -274,9 +272,43 @@ class UserStore {
     const user = await this.getUserByEmail(email);
     if (!user) return null;
 
-    const inputHash = this.hashPassword(password);
-    if (user.passwordHash !== inputHash) {
+    const trimmedPassword = password.trim();
+    let isValid = false;
+    let needsUpgrade = false;
+
+    // 1. Verify bcrypt format ($2a$ or $2b$)
+    if (user.passwordHash.startsWith('$2')) {
+      isValid = bcrypt.compareSync(trimmedPassword, user.passwordHash);
+    } else {
+      // 2. Legacy SHA-256 hash compatibility check
+      const legacyHash = createHash('sha256').update(trimmedPassword).digest('hex');
+      if (user.passwordHash === legacyHash) {
+        isValid = true;
+        needsUpgrade = true;
+      }
+    }
+
+    if (!isValid) {
       return null;
+    }
+
+    // Transparent, automatic legacy hash upgrade to modern bcrypt
+    if (needsUpgrade) {
+      try {
+        const newBcryptHash = this.hashPassword(trimmedPassword);
+        user.passwordHash = newBcryptHash;
+        this.users.set(user.email.toLowerCase(), user);
+
+        const client = getSupabaseClient();
+        if (client) {
+          await client
+            .from('user_profiles')
+            .update({ password_hash: newBcryptHash, updated_at: new Date().toISOString() })
+            .eq('id', user.id);
+        }
+      } catch (err) {
+        console.warn(`[Security] Could not upgrade legacy hash for user ${user.email}:`, err);
+      }
     }
 
     const { passwordHash: _, ...publicProfile } = user;

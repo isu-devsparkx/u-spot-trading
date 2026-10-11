@@ -578,6 +578,12 @@ export async function saveSignal(
     return { success: true, source: 'local_memory' };
   }
 
+  // Phase A Safety Rule: Synthetic or test fixture signals must never be persisted as actionable BUY_NOW signals
+  if ('isSynthetic' in signal && signal.isSynthetic && 'status' in signal && signal.status === 'BUY_NOW') {
+    console.warn(`[Signal Store Security] Blocked persistence of synthetic BUY_NOW signal for ${signal.symbol}.`);
+    return { success: false, source: 'local_memory', error: 'Synthetic BUY_NOW signals cannot be persisted to database.' };
+  }
+
   // Always update in-memory cache
   memoryStore.saveSignal(signal);
 
@@ -611,8 +617,10 @@ export async function saveSignal(
 export async function saveSignals(
   signals: Signal[]
 ): Promise<{ success: boolean; count: number; source: StorageSource; error?: string }> {
-  // Only persist actionable signals; reject NO_TRADE, AVOID evaluations from filling the database
-  const actionable = signals.filter((s) => s.status !== 'NO_TRADE' && s.status !== 'AVOID');
+  // Only persist actionable signals; reject NO_TRADE, AVOID, and synthetic evaluations from filling the database
+  const actionable = signals.filter(
+    (s) => s.status !== 'NO_TRADE' && s.status !== 'AVOID' && !s.isSynthetic && s.dataProvenance !== 'SYNTHETIC_OFFLINE'
+  );
   if (actionable.length === 0) {
     return { success: true, count: 0, source: 'local_memory' };
   }

@@ -2,18 +2,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { userService } from '@/lib/services/user-service';
+import { getSessionFromRequest } from '@/lib/services/session-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.cookies.get('uspot_user_id')?.value;
+    const session = getSessionFromRequest(request);
 
-    if (!userId) {
+    if (!session) {
       return NextResponse.json({ success: false, user: null });
     }
 
-    const user = await userService.getUserById(userId);
+    const user = await userService.getUserById(session.userId);
 
     if (!user) {
       return NextResponse.json({ success: false, user: null });

@@ -39,6 +39,7 @@
 | **14** | Walk-Forward Validation | ✅ Completed | §30, §31, §33 | 6 tests | In-sample training, out-of-sample testing, rolling walk-forward efficiency (WFE), overfitting diagnostics, UI workbench |
 | **15** | Telegram Alerts & Notifications | ✅ Completed | §34 | 8 tests | Real-time Bot API dispatcher, lifecycle event alerts (Created/DCA/TP1-3/SL/Expiry), 5m deduplication, Settings UI |
 | **16** | Strategy Research Lab | ✅ Completed | §29, §36 | 11 tests | Interactive 9-factor parameter authoring, versioning/persistence, presets, side-by-side comparison with dual equity overlay |
+| **Phase A** | Critical Safety & Security Remediation | ✅ Completed | Production Audit | 21 tests (392 total) | Synthetic data isolation, fail-closed market data validation, bcrypt migration, signed session tokens, server-side API auth guards, CSRF & worker protection |
 
 ---
 
@@ -1427,6 +1428,35 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
         - **Data Store Sanitization (`src/lib/services/signal-store.ts`)**: In `mapDbRowToSignalRecord`, strictly sanitized `tradeScoreBreakdown` to only map numeric factor weights (`trend, momentum, volume, structure, liquidity, volatility, regime, total`), completely purging nested metadata objects from factor entries. In `mapSignalToDbRow`, explicitly partitioned numeric factors.
         - **UI Child Guardrails (`src/app/history/[id]/page.tsx`)**: Guarded factor breakdown with `typeof v === 'number' && !isNaN(v)`. Added a dedicated AI Officer Audit card displaying verdict, confidence score, rationale, and key risks safely.
       - **Verification**: 363/363 unit tests passing, production build compiling cleanly with 0 TypeScript/Turbopack errors.
+
+    - **Architectural Hardening — Phase A: Critical Safety & Security Remediation**:
+      - **Problem Evaluated**: Production readiness audit uncovered critical safety and security vulnerabilities:
+        1. `generateSyntheticOHLCV` fallback during Binance network or rate limit errors could generate fabricated `BUY_NOW` signals and persist them to Supabase/Telegram.
+        2. Market data lacked provenance typing and geometry/freshness validation.
+        3. Passwords used unsalted SHA-256 and sessions relied on an unsigned, client-spoofable `uspot_user_id` cookie.
+        4. Registration permitted arbitrary role assignment (`role: 'admin'`).
+        5. Sensitive API endpoints (`/api/signals`, `/api/signals/lifecycle`, `/api/strategy`, `/api/telegram`, `/api/execution/smart-split`) lacked server-side authentication and role verification.
+        6. `/api/signals/lifecycle` accepted client-supplied `mockPrices` allowing arbitrary client manipulation of trade exits.
+      - **Fixes Applied**:
+        - **Synthetic Market Data Isolation & Provenance (`src/lib/services/binance-service.ts`, `src/lib/services/signal-engine.ts`, `src/types/index.ts`)**:
+          - Introduced `MarketDataProvenance = 'REAL_PROVIDER' | 'TEST_FIXTURE' | 'SYNTHETIC_OFFLINE'`.
+          - Implemented `validateCandles()` and `fetchValidatedKlines()` with strict candle geometry ($H \ge L$, $H \ge \max(O,C)$, $L \le \min(O,C)$), chronological ordering, non-negative volume, and freshness limits.
+          - Enforced fail-closed behavior: Network failures, HTTP 429s, or invalid data fail closed without substituting synthetic candles.
+          - Guarded `saveSignal()` in `src/lib/services/signal-store.ts` and `broadcastNewSignal()` in `src/lib/services/telegram-service.ts` to reject any synthetic or unverified signals.
+        - **Authentication & Cryptographic Session Security (`src/lib/services/session-service.ts`, `src/lib/services/user-service.ts`)**:
+          - Upgraded password hashing from legacy unsalted SHA-256 to `bcryptjs` (salt cost 10).
+          - Implemented transparent, zero-friction legacy migration: verified SHA-256 passwords are automatically upgraded to bcrypt upon successful login.
+          - Hardened registration to enforce `role: 'user'` by default, rejecting privilege escalation attempts.
+          - Replaced unsigned cookies with HMAC-SHA256 signed compact session tokens (`uspot_session`) stored in `HttpOnly`, `SameSite: Lax`, and `Secure` (production) cookies with 7-day TTL.
+        - **Server-Side API Authorization Guards & Worker Protection (`src/lib/auth-guard.ts`)**:
+          - Implemented `requireAuth`, `requireAdmin`, `requireWorkerOrAdmin`, and `verifyCsrf`.
+          - Protected `/api/strategy` and `/api/telegram` mutations with `requireAdmin` and CSRF validation.
+          - Protected `/api/execution/smart-split` with `requireAuth` and CSRF validation.
+          - Protected `/api/signals/lifecycle` sweeps with `requireWorkerOrAdmin` requiring valid `CRON_SECRET` bearer tokens.
+          - Stripped client-supplied `mockPrices` in production lifecycle sweeps to prevent artificial exit manipulations.
+        - **Automated Regression Test Suite**:
+          - Added `src/lib/__tests__/market-data-safety.test.ts` (10 tests) and `src/lib/__tests__/auth-security.test.ts` (11 tests).
+          - Test suite expanded to 392/392 passing tests across 156 test suites (100% pass rate). Clean Next.js Turbopack build with 0 TypeScript errors.
 
 ---
 

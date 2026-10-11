@@ -665,6 +665,16 @@ export async function broadcastNewSignal(
     ...configOverride,
   };
 
+  // Phase A Safety Rule: Never broadcast signals generated from synthetic or test fixture data
+  if (signal.isSynthetic || (signal.dataProvenance && signal.dataProvenance !== 'REAL_PROVIDER')) {
+    console.warn(`[Telegram Security] Broadcast blocked for ${signal.symbol}: Signal data is synthetic or non-real provider (${signal.dataProvenance || 'synthetic'}).`);
+    return {
+      success: false,
+      error: `Broadcast blocked: Synthetic or non-real provider market data cannot generate Telegram alerts.`,
+      timestamp: Date.now(),
+    };
+  }
+
   // Strict AI Gatekeeper enforcement: Never broadcast signals rejected by AI
   if (signal.aiAnalysis && signal.aiAnalysis.verdict === 'REJECTED') {
     console.warn(`[Telegram Gatekeeper] Broadcast blocked for ${signal.symbol}: Signal REJECTED by AI.`);

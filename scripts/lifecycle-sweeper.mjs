@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
 const BASE_URL = process.env.BASE_URL || `http://${HOST}:${PORT}`;
 const INTERVAL_MS = parseInt(process.env.SWEEP_INTERVAL_MS || '60000', 10); // default 60s
+const CRON_SECRET = process.env.CRON_SECRET || 'dev-cron-secret';
 
 console.log(`[Lifecycle Sweeper] Initializing autonomous background worker...`);
 console.log(`[Lifecycle Sweeper] Target URL: ${BASE_URL}/api/signals/lifecycle`);
@@ -33,12 +34,18 @@ async function runSweep() {
   const startTime = Date.now();
 
   try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'U-Spot-Lifecycle-Sweeper/1.0',
+    };
+    if (CRON_SECRET) {
+      headers['Authorization'] = `Bearer ${CRON_SECRET}`;
+      headers['x-cron-secret'] = CRON_SECRET;
+    }
+
     const response = await fetch(`${BASE_URL}/api/signals/lifecycle`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'U-Spot-Lifecycle-Sweeper/1.0',
-      },
+      headers,
       body: JSON.stringify({}),
     });
 

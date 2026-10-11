@@ -7,10 +7,9 @@ import { getGeminiConfig, evaluateSignalWithAi, generateAiSignal } from '@/lib/s
 import { getTradeMemoryInsights } from '@/lib/services/ai-memory-service';
 import { fetchMarketNews, getMacroMarketSentiment } from '@/lib/services/news-service';
 import { getMarketUniverse } from '@/lib/services/market-universe';
-import { fetchAllTickers24h, fetchKlines } from '@/lib/services/binance-service';
+import { fetchAllTickers24h, fetchValidatedKlines } from '@/lib/services/binance-service';
 import { scanMarketUniverse } from '@/lib/services/scanner-service';
 import { runTechnicalAnalysis } from '@/lib/ta';
-import { generateSyntheticOHLCV } from '@/lib/services/signal-engine';
 
 export async function GET() {
   try {
@@ -98,9 +97,16 @@ export async function POST(request: Request) {
 
       let klines;
       try {
-        klines = await fetchKlines(candidate.symbol, '15m', 80);
-      } catch {
-        klines = generateSyntheticOHLCV(candidate.price, candidate.change24h, 80);
+        const valKlines = await fetchValidatedKlines(candidate.symbol, '15m', 80);
+        klines = valKlines.candles;
+      } catch (err) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Market data unavailable for ${candidate.symbol}. AI signal generation aborted (fail closed).`,
+          },
+          { status: 503 }
+        );
       }
 
       const ta = runTechnicalAnalysis(candidate.symbol, klines, '15m', null);

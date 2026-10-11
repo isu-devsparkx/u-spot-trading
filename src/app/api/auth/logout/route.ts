@@ -1,6 +1,5 @@
-// ─── U-SPOT Auth Logout API ──────────────────────────────────────────
-
 import { NextResponse } from 'next/server';
+import { clearSessionCookie } from '@/lib/services/session-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +9,6 @@ export async function POST() {
     message: 'Logged out successfully.',
   });
 
-  response.cookies.delete('uspot_user_id');
+  clearSessionCookie(response);
   return response;
 }
