@@ -1416,7 +1416,7 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
       - **Autonomous Scripts & Automation Config**:
         - [`scripts/run-engine-cron.mjs`](file:///d:/Development/U-spot%20Trading/u-spot/scripts/run-engine-cron.mjs): Unified runner supporting both one-shot (`--once` for GitHub Actions and serverless crons) and continuous daemon modes. Executes lifecycle evaluations (TP1/TP2/TP3/SL/DCA) and scans top pairs with AI validation.
         - [`.github/workflows/signal-engine.yml`](file:///d:/Development/U-spot%20Trading/u-spot/.github/workflows/signal-engine.yml): GitHub Actions cron (`*/5 * * * *`) that wakes up, executes the engine against the live deployment URL, and persists active trades to Supabase.
-        - [`vercel.json`](file:///d:/Development/U-spot%20Trading/u-spot/vercel.json): Vercel configuration with fallback hourly cron for signal lifecycles.
+        - [`vercel.json`](file:///d:/Development/U-spot%20Trading/u-spot/vercel.json): Vercel configuration with fallback daily midnight cron (`0 0 * * *`) compliant with Vercel Hobby Free Tier policy, while GitHub Actions drives continuous 5-minute ticks 24/7.
         - Updated `.gitignore` and `.env.example` with clear instructions for `BASE_URL`, `CRON_SECRET`, and `GEMINI_API_KEY`.
       - **Verification**: 363/363 unit tests passing (148 suites), Next.js production build (`npm run build`) compiling cleanly with 0 TypeScript/Turbopack errors.
 
