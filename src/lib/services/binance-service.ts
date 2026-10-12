@@ -15,9 +15,11 @@ import type {
 
 /** Primary and fallback public Binance REST endpoints */
 const BINANCE_BASE_URLS = [
+  'https://data-api.binance.vision/api/v3',
   'https://api.binance.com/api/v3',
   'https://api1.binance.com/api/v3',
-  'https://data-api.binance.vision/api/v3',
+  'https://api2.binance.com/api/v3',
+  'https://api3.binance.com/api/v3',
 ];
 
 /** Stablecoins and fiat-pegged tokens to filter out from trading signals */
@@ -114,6 +116,7 @@ async function fetchWithFallback<T>(path: string, timeoutMs: number = 8000): Pro
       if (res.status === 429 || res.status === 418) {
         throw new Error(`Binance Rate Limited (${res.status})`);
       }
+      throw new Error(`Binance returned HTTP ${res.status}: ${res.statusText || 'Error'}`);
     } catch (err: unknown) {
       lastError = err instanceof Error ? err : new Error(String(err));
     }

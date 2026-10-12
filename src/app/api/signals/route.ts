@@ -44,6 +44,9 @@ interface CachedSignals {
 let signalCache: CachedSignals | null = null;
 const CACHE_TTL_MS = 15_000;
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -89,78 +92,87 @@ export async function GET(request: Request) {
       const candidates = scanResult.candidates;
 
       // 3. For each candidate, evaluate technical analysis & generate signal
+      // Process in concurrent batches of 4 to stay well within serverless latency budgets
       const generatedList: Signal[] = [];
+      const BATCH_SIZE = 4;
 
-      for (let i = 0; i < candidates.length; i++) {
-        const candidate = candidates[i];
-        let klines;
-        let klines1h: OHLCV[] | null = null;
-        let orderBook = null;
+      for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+        const batch = candidates.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(
+          batch.map(async (candidate) => {
+            let klines;
+            let klines1h: OHLCV[] | null = null;
+            let orderBook = null;
 
-        // Phase A Safety Rule: Real provider market data only. Fail-closed on missing/invalid candles.
-        try {
-          const [valKlines, fetchedDepth, fetched1h] = await Promise.all([
-            fetchValidatedKlines(candidate.symbol, '15m', 80),
-            fetchOrderBook(candidate.symbol, 20).catch(() => null),
-            fetchValidatedKlines(candidate.symbol, '1h', 50).then((v) => v.candles).catch(() => null),
-          ]);
-          klines = valKlines.candles;
-          orderBook = fetchedDepth;
-          klines1h = fetched1h;
-        } catch (fetchErr) {
-          // Fail closed: skip candidate without generating any signal or alert
-          console.warn(
-            `[/api/signals] Skipping ${candidate.symbol}: Live market data unavailable (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)})`
-          );
-          continue;
-        }
-
-        const ta = runTechnicalAnalysis(candidate.symbol, klines, '15m', orderBook);
-        const mtf = evaluateMultiTimeframeConfluence({
-          symbol: candidate.symbol,
-          klines15m: klines,
-          klines1h: klines1h || undefined,
-          currentPrice: candidate.price,
-        });
-
-        const signal = generateSignalFromCandidate({
-          candidate,
-          ta,
-          mtfAnalysis: mtf,
-          walletBalance,
-          weights: DEFAULT_SIGNAL_WEIGHTS,
-        });
-
-        // BTC Circuit Breaker Check: protect altcoin BUY setups if Bitcoin is flushing or in steep downtrend
-        if (btcMacro && !btcMacro.isAltcoinBuyAllowed && candidate.symbol !== 'BTCUSDT') {
-          if (btcMacro.regime === 'FLUSH_RISK') {
-            signal.status = 'AVOID';
-            signal.tradeScore = Math.max(20, signal.tradeScore - 25);
-            signal.rationale = `[BTC Macro Circuit Breaker: ${btcMacro.cautionReason}] ${signal.rationale || ''}`;
-          } else if (btcMacro.regime === 'BEARISH_TREND' && signal.status === 'BUY_NOW') {
-            signal.status = 'WAIT_FOR_CONFIRMATION';
-            signal.tradeScore = Math.max(30, signal.tradeScore - 15);
-            signal.rationale = `[BTC Macro Drag: ${btcMacro.cautionReason}] ${signal.rationale || ''}`;
-          }
-        }
-
-        // Strict AI Gatekeeper: audit BUY_NOW and WAIT_FOR_CONFIRMATION signals before publishing
-        if (signal.status === 'BUY_NOW' || signal.status === 'WAIT_FOR_CONFIRMATION') {
-          try {
-            const aiAnalysis = await evaluateSignalWithAi(signal);
-            signal.aiAnalysis = aiAnalysis;
-            if (aiAnalysis.verdict === 'REJECTED') {
-              signal.status = 'AVOID';
-              signal.rationale = `[AI Gatekeeper Rejected: ${aiAnalysis.aiRationale}] ${signal.rationale || ''}`;
-            } else if (aiAnalysis.verdict === 'CAUTION') {
-              signal.status = 'WAIT_FOR_CONFIRMATION';
+            // Phase A Safety Rule: Real provider market data only. Fail-closed on missing/invalid candles.
+            try {
+              const [valKlines, fetchedDepth, fetched1h] = await Promise.all([
+                fetchValidatedKlines(candidate.symbol, '15m', 80),
+                fetchOrderBook(candidate.symbol, 20).catch(() => null),
+                fetchValidatedKlines(candidate.symbol, '1h', 50).then((v) => v.candles).catch(() => null),
+              ]);
+              klines = valKlines.candles;
+              orderBook = fetchedDepth;
+              klines1h = fetched1h;
+            } catch (fetchErr) {
+              console.warn(
+                `[/api/signals] Skipping ${candidate.symbol}: Live market data unavailable (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)})`
+              );
+              return null;
             }
-          } catch (aiErr) {
-            console.warn(`[AI Gatekeeper Warning] Could not audit ${signal.symbol}:`, aiErr);
-          }
-        }
 
-        generatedList.push(signal);
+            const ta = runTechnicalAnalysis(candidate.symbol, klines, '15m', orderBook);
+            const mtf = evaluateMultiTimeframeConfluence({
+              symbol: candidate.symbol,
+              klines15m: klines,
+              klines1h: klines1h || undefined,
+              currentPrice: candidate.price,
+            });
+
+            const signal = generateSignalFromCandidate({
+              candidate,
+              ta,
+              mtfAnalysis: mtf,
+              walletBalance,
+              weights: DEFAULT_SIGNAL_WEIGHTS,
+            });
+
+            // BTC Circuit Breaker Check: protect altcoin BUY setups if Bitcoin is flushing or in steep downtrend
+            if (btcMacro && !btcMacro.isAltcoinBuyAllowed && candidate.symbol !== 'BTCUSDT') {
+              if (btcMacro.regime === 'FLUSH_RISK') {
+                signal.status = 'AVOID';
+                signal.tradeScore = Math.max(20, signal.tradeScore - 25);
+                signal.rationale = `[BTC Macro Circuit Breaker: ${btcMacro.cautionReason}] ${signal.rationale || ''}`;
+              } else if (btcMacro.regime === 'BEARISH_TREND' && signal.status === 'BUY_NOW') {
+                signal.status = 'WAIT_FOR_CONFIRMATION';
+                signal.tradeScore = Math.max(30, signal.tradeScore - 15);
+                signal.rationale = `[BTC Macro Drag: ${btcMacro.cautionReason}] ${signal.rationale || ''}`;
+              }
+            }
+
+            // Strict AI Gatekeeper: audit BUY_NOW and WAIT_FOR_CONFIRMATION signals before publishing
+            if (signal.status === 'BUY_NOW' || signal.status === 'WAIT_FOR_CONFIRMATION') {
+              try {
+                const aiAnalysis = await evaluateSignalWithAi(signal);
+                signal.aiAnalysis = aiAnalysis;
+                if (aiAnalysis.verdict === 'REJECTED') {
+                  signal.status = 'AVOID';
+                  signal.rationale = `[AI Gatekeeper Rejected: ${aiAnalysis.aiRationale}] ${signal.rationale || ''}`;
+                } else if (aiAnalysis.verdict === 'CAUTION') {
+                  signal.status = 'WAIT_FOR_CONFIRMATION';
+                }
+              } catch (aiErr) {
+                console.warn(`[AI Gatekeeper Warning] Could not audit ${signal.symbol}:`, aiErr);
+              }
+            }
+
+            return signal;
+          })
+        );
+
+        for (const sig of batchResults) {
+          if (sig) generatedList.push(sig);
+        }
       }
 
       // Sort signals by status priority and trade score
@@ -211,6 +223,7 @@ export async function GET(request: Request) {
       evaluatedSignals = generatedList;
 
       // Persist only AI-APPROVED confirmed BUY_NOW signals that do not already have an active trade open
+      // Awaited explicitly so Vercel serverless context does not freeze prior to database write
       const confirmedToPersist = evaluatedSignals.filter(
         (s) =>
           s.status === 'BUY_NOW' &&
@@ -218,16 +231,16 @@ export async function GET(request: Request) {
           (!s.aiAnalysis || s.aiAnalysis.verdict === 'APPROVED')
       );
       if (confirmedToPersist.length > 0) {
-        (async () => {
-          for (const sig of confirmedToPersist) {
+        for (const sig of confirmedToPersist) {
+          try {
             const active = await hasActiveSignal(sig.symbol);
             if (!active) {
               await saveSignal(sig);
             }
+          } catch (persistErr) {
+            console.warn('[/api/signals] Confirmed signal persistence failed:', persistErr);
           }
-        })().catch((err) => {
-          console.warn('[/api/signals] Background confirmed signal persistence failed:', err);
-        });
+        }
       }
 
       for (const cand of candidates.slice(0, 5)) {

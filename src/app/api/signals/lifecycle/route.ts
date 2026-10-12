@@ -7,6 +7,7 @@ import { getSignals, getSignalById } from '@/lib/services/signal-store';
 import { requireWorkerOrAdmin } from '@/lib/auth-guard';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {

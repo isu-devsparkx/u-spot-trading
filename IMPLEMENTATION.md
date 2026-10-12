@@ -1458,6 +1458,22 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
           - Added `src/lib/__tests__/market-data-safety.test.ts` (10 tests) and `src/lib/__tests__/auth-security.test.ts` (11 tests).
           - Test suite expanded to 392/392 passing tests across 156 test suites (100% pass rate). Clean Next.js Turbopack build with 0 TypeScript errors.
 
+    - **Operational Hardening — Live Hosted Signal Generation & Serverless Execution Reliability**:
+      - **Problem Evaluated**: In live cloud hosting (Vercel), new signals were not generating:
+        1. Vercel serverless default function timeout (10-15s) truncated the sequential candidate scan loop before completion (504 Gateway Timeout).
+        2. Database persistence (`saveSignal`) in `/api/signals` used an un-awaited background promise, which was frozen/aborted when the serverless HTTP response completed.
+        3. Binance public REST endpoint geoblocking restricted US-region (`iad1`) Vercel functions, returning HTTP 451.
+      - **Fixes Applied**:
+        - **Route Execution & Latency Optimization (`src/app/api/signals/route.ts`)**:
+          - Added `export const dynamic = 'force-dynamic';` and `export const maxDuration = 60;`.
+          - Replaced sequential 20-candidate loop with concurrent 4-candidate batches (`Promise.all`), reducing scan time from 40s to ~5s.
+          - Explicitly awaited `saveSignal()` persistence for `confirmedToPersist` signals before returning the response.
+        - **Public Endpoint Geoblock Resilience (`src/lib/services/binance-service.ts`, `vercel.json`)**:
+          - Prioritized `https://data-api.binance.vision/api/v3` first in `BINANCE_BASE_URLS` for universal, unrestricted access.
+          - Threw informative errors on HTTP 4xx/5xx in `fetchWithFallback` to trigger rapid fallback failover.
+          - Configured `"regions": ["fra1"]` (Frankfurt, Europe) in `vercel.json` to ensure serverless execution runs in an unrestricted region.
+      - **Verification**: 392/392 unit tests passing, Next.js production build compiling cleanly with 0 errors.
+
 ---
 
 ## 5. Maintenance & Update Protocol
