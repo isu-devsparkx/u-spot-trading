@@ -31,10 +31,18 @@ jobs:
           node-version: 20
 
       - name: Execute Autonomous Signal Cycle
+        env:
+          INPUT_TARGET_URL: ${{ github.event.inputs.target_url }}
+          VERCEL_APP_URL: ${{ secrets.VERCEL_APP_URL }}
+          BASE_URL_SECRET: ${{ secrets.BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          TARGET="${{ github.event.inputs.target_url }}"
+          TARGET="$INPUT_TARGET_URL"
           if [ -z "$TARGET" ]; then
-            TARGET="${{ secrets.VERCEL_APP_URL || secrets.BASE_URL }}"
+            TARGET="$VERCEL_APP_URL"
+          fi
+          if [ -z "$TARGET" ]; then
+            TARGET="$BASE_URL_SECRET"
           fi
 
           if [ -z "$TARGET" ]; then
@@ -45,5 +53,3 @@ jobs:
 
           echo "Target Base URL: $TARGET"
           BASE_URL="$TARGET" node scripts/run-engine-cron.mjs --once
-        env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
