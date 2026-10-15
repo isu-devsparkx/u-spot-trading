@@ -1474,6 +1474,18 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
           - Configured `"regions": ["fra1"]` (Frankfurt, Europe) in `vercel.json` to ensure serverless execution runs in an unrestricted region.
       - **Verification**: 392/392 unit tests passing, Next.js production build compiling cleanly with 0 errors.
 
+    - **Operational Hardening — Continuous Autonomous Lifecycle Sweeper Execution & Expiry Unblocking**:
+      - **Problem Evaluated**: In live hosting, pending signals showed in the dashboard/signals page but never executed into active/history stages:
+        1. Background lifecycle sweeper (`processActiveSignalsLifecycle()`) was decoupled from `/api/signals` and only invoked by external workers. If background cron didn't execute, existing pending signals remained in `CREATED` indefinitely and never triggered entry or targets.
+        2. `getActiveSignalBySymbol` did not filter out expired `CREATED` signals (>4 hours), causing `hasActiveSignal` to falsely consider symbols locked by old expired pending records and blocking fresh signal generation.
+      - **Fixes Applied**:
+        - **Coupled Lifecycle Sweeper to Market Universe Scan (`src/app/api/signals/route.ts`)**:
+          - Integrated `processActiveSignalsLifecycle()` directly into `GET /api/signals`'s `Promise.all` concurrent fetching block.
+          - Every scan (manual "Scan Now", UI auto-refresh, or scheduled poll) now simultaneously sweeps all pending/active trades against live Binance prices (triggering entries, DCA fills, TP scaling, SL hits, or expiry) with zero added latency.
+        - **Active Signal Expiry Check (`src/lib/services/signal-store.ts`)**:
+          - Updated `getActiveSignalBySymbol` (in Supabase and in-memory store) to treat `CREATED` signals past `expiresAt` as expired and unblock fresh candidate evaluation for that pair.
+      - **Verification**: 392/392 unit tests passing, Next.js production build compiling cleanly with 0 errors.
+
 ---
 
 ## 5. Maintenance & Update Protocol

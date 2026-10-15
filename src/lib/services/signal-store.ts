@@ -865,7 +865,12 @@ export async function getActiveSignalBySymbol(
         .maybeSingle();
 
       if (!error && data) {
-        return mapDbRowToSignalRecord(data as Record<string, unknown>);
+        const record = mapDbRowToSignalRecord(data as Record<string, unknown>);
+        // If the signal is pending in CREATED state but past its expiry timestamp, it is expired and no longer active
+        if (record.lifecycle === 'CREATED' && new Date(record.expiresAt).getTime() <= Date.now()) {
+          return null;
+        }
+        return record;
       }
     } catch (err) {
       console.warn('[/lib/services/signal-store] Supabase getActiveSignalBySymbol failed:', err);
@@ -874,9 +879,12 @@ export async function getActiveSignalBySymbol(
 
   // Fallback to memory store
   const all = memoryStore.getAllSignals();
-  const active = all.find(
-    (s) => s.symbol === symbol && (ACTIVE_LIFECYCLES as readonly string[]).includes(s.lifecycle)
-  );
+  const active = all.find((s) => {
+    if (s.symbol !== symbol) return false;
+    if (!(ACTIVE_LIFECYCLES as readonly string[]).includes(s.lifecycle)) return false;
+    if (s.lifecycle === 'CREATED' && new Date(s.expiresAt).getTime() <= Date.now()) return false;
+    return true;
+  });
   return active || null;
 }
 

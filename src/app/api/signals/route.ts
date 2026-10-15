@@ -15,6 +15,7 @@ import { saveSignal, saveSignals, saveMarketSnapshot, hasActiveSignal } from '@/
 import { broadcastNewSignal } from '@/lib/services/telegram-service';
 import { evaluateSignalWithAi } from '@/lib/services/ai-signal-service';
 import { getBtcMacroRegime, type BtcMacroRegime } from '@/lib/services/btc-gatekeeper';
+import { processActiveSignalsLifecycle } from '@/lib/services/lifecycle-service';
 import type {
   Signal,
   SignalStatus,
@@ -75,11 +76,15 @@ export async function GET(request: Request) {
       marketRegime = signalCache.marketRegime;
       btcMacroState = signalCache.btcMacro;
     } else {
-      // 1. Get market universe, tickers, and BTC Macro Regime
+      // 1. Get market universe, tickers, BTC Macro Regime, and sweep active lifecycles
       const [universe, tickers, btcMacro] = await Promise.all([
         getMarketUniverse(forceRefresh),
         fetchAllTickers24h(),
         getBtcMacroRegime(forceRefresh),
+        processActiveSignalsLifecycle().catch((err) => {
+          console.warn('[/api/signals] Autonomous lifecycle sweep non-fatal warning:', err);
+          return null;
+        }),
       ]);
       btcMacroState = btcMacro;
 
