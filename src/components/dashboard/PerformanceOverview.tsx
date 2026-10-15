@@ -129,7 +129,7 @@ export default function PerformanceOverview({ stats, isLoading = false }: Perfor
         <StatBox
           label="Net P&L"
           value={stats.totalNetPnlUsdt != null ? `$${stats.totalNetPnlUsdt.toFixed(1)}` : '—'}
-          sub={`Fees: $${(stats.totalFeesUsdt ?? 0).toFixed(1)}`}
+          sub="Realized P&L"
           color={(stats.totalNetPnlUsdt ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}
         />
       </div>

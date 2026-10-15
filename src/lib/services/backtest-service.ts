@@ -27,8 +27,8 @@ export const DEFAULT_BACKTEST_CONFIG: BacktestConfig = {
   timeframe: '15m',
   barsCount: 200,
   initialWalletBalance: 300,
-  makerFeeRate: 0.001,      // 0.10% Binance spot maker
-  takerFeeRate: 0.001,      // 0.10% Binance spot taker
+  makerFeeRate: 0,          // Fees excluded as exact rates vary across accounts
+  takerFeeRate: 0,
   slippageRate: 0.0005,     // 0.05% execution slippage
   spreadRate: 0.0002,       // 0.02% bid-ask spread
   maxConcurrentPositions: 1,

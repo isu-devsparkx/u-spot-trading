@@ -1486,6 +1486,23 @@ All **16 phases** specified in `U-SPOT_Antigravity_Implementation_Plan.md` have 
           - Updated `getActiveSignalBySymbol` (in Supabase and in-memory store) to treat `CREATED` signals past `expiresAt` as expired and unblock fresh candidate evaluation for that pair.
       - **Verification**: 392/392 unit tests passing, Next.js production build compiling cleanly with 0 errors.
 
+    - **Architectural Refinement — Complete Elimination of Arbitrary Exchange Fee Calculations**:
+      - **Problem Evaluated**: Exchange trading fee rates cannot be reliably predicted across different user accounts, as they vary widely based on VIP tier status, BNB fee discount deduction toggles, referral rebates, and exchange promotional zero-fee pairs (e.g. BTC/FDUSD, stablecoin pairs). Hardcoded fee deductions (0.10% maker / 0.10% taker) artificially distorted position sizing, projected profits, and post-trade evaluation metrics.
+      - **Fixes Applied**:
+        - **Risk Engine (`src/lib/risk-engine.ts`)**: Set maker and taker fee rates to 0. `estimatedFeeCostUsdt` is zeroed, and take profit net profit matches gross profit without arbitrary fee deductions. Position sizing reflects pure structural price movement and invalidation distance.
+        - **Post-Trade Evaluation (`src/lib/services/evaluation-service.ts`)**: `calculateNetPnl` sets `feesUsdt = 0` and calculates net P&L based on price return minus actual slippage. Removed fee lines from post-trade winning and losing review templates.
+        - **Performance Engine (`src/lib/services/performance-service.ts`)**: `totalFeesUsdt` zeroed and removed from performance cards.
+        - **Backtest Engine (`src/lib/services/backtest-service.ts`)**: Default `makerFeeRate` and `takerFeeRate` set to 0. Backtests model pure price movement and execution slippage.
+        - **User Interfaces & Calculators**:
+          - `PositionSizeCalculator.tsx`: Removed fee mentions from planned loss subtitle and footnote.
+          - `PerformanceOverview.tsx`: Removed fee subtitle from the Net P&L stat card.
+          - `/performance` (`page.tsx`): Replaced the "Frictions (Fees)" card with "Profit Factor" ($E(R)$ win/loss ratio) and updated Net P&L subtitle to "Realized trading return".
+          - `/history/[id]` (`page.tsx`): Removed the "Roundtrip Fees (0.20%)" line and renamed section to "Capital & Projected P&L".
+          - `SignalHistoryTable.tsx`: Replaced the "Fees" card with "Capital Deployed".
+          - `/strategy-lab` (`page.tsx`): Replaced "Total Frictions" card with "Profit Factor", and updated the trade log column to "Slip & Spread".
+          - `/settings` (`page.tsx`): Removed the maker/taker fee input fields and updated the model card to "Execution Model & Slippage Buffer".
+      - **Verification**: 392/392 unit tests passing (156 test suites), Next.js production build compiling cleanly with 0 TypeScript/Turbopack errors.
+
 ---
 
 ## 5. Maintenance & Update Protocol

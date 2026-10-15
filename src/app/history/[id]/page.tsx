@@ -1358,11 +1358,11 @@ export default function SignalDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Financial & Fee Accounting */}
+            {/* Financial Accounting */}
             <div className="bg-[var(--surface-1)] border border-[var(--glass-border)] rounded-2xl p-5 shadow-lg space-y-4">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                 <DollarSign size={15} className="text-cyan-400" />
-                Capital, Fees & Net P&L
+                Capital & Projected P&L
               </h3>
 
               <div className="space-y-2.5 text-xs">
@@ -1396,13 +1396,6 @@ export default function SignalDetailPage({ params }: PageProps) {
                   <span className="text-slate-400">Total Potential Net Profit:</span>
                   <span className="font-mono text-emerald-400 font-bold">
                     +${sizing ? sizing.totalPotentialNetProfitUsdt.toFixed(2) : '—'} USDT
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-1 border-b border-[var(--glass-border)]/40">
-                  <span className="text-slate-400">Roundtrip Fees (0.20%):</span>
-                  <span className="font-mono text-slate-400">
-                    ${sizing ? sizing.estimatedFeeCostUsdt.toFixed(2) : '—'} USDT
                   </span>
                 </div>
 

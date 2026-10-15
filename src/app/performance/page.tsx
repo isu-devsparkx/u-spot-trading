@@ -265,15 +265,15 @@ export default function PerformancePage() {
                 ? `${stats.totalNetPnlUsdt >= 0 ? '+' : ''}$${stats.totalNetPnlUsdt.toFixed(2)}`
                 : '—'}
             </span>
-            <span className="text-[10px] text-slate-500 block mt-0.5">After fees & slippage</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">Realized trading return</span>
           </div>
 
           <div className="glass-card rounded-xl p-4 border border-[var(--glass-border)]">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Frictions (Fees)</span>
-            <span className="text-lg font-mono font-bold text-amber-400 block mt-1">
-              ${stats?.totalFeesUsdt != null ? stats.totalFeesUsdt.toFixed(2) : '0.00'}
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Profit Factor</span>
+            <span className="text-lg font-mono font-bold text-cyan-400 block mt-1">
+              {stats?.profitFactor != null ? stats.profitFactor.toFixed(2) : '—'}
             </span>
-            <span className="text-[10px] text-slate-500 block mt-0.5">0.1% maker/taker + slip</span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">Gross gains / gross losses</span>
           </div>
         </div>
 

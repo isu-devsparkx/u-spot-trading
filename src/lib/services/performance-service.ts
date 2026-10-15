@@ -196,7 +196,7 @@ export function computePerformanceStats(
     // R multiples & PnL
     const r = ev?.realizedR ?? signal.realizedR;
     const netPnl = ev?.netPnlUsdt ?? (signal.realizedReturn && signal.maxDeployed ? (signal.realizedReturn / 100) * signal.maxDeployed : 0);
-    const fees = ev?.feesUsdt ?? signal.fees ?? 0;
+    const fees = 0;
 
     if (r !== null && r !== undefined) {
       realizedRs.push(r);

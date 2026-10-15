@@ -37,10 +37,10 @@ export const TP_SPLIT = {
   tp3: 0.4, // 40% of position sold at TP3 (runner)
 } as const;
 
-/** Default exchange execution costs */
+/** Default exchange execution costs (fees excluded as exact rates vary by VIP tier and promotions) */
 export const DEFAULT_EXECUTION_COSTS = {
-  makerFeePercent: 0.1, // 0.1% Binance spot maker
-  takerFeePercent: 0.1, // 0.1% Binance spot taker
+  makerFeePercent: 0,
+  takerFeePercent: 0,
   slippagePercent: 0.05, // 0.05% estimated spot slippage
 } as const;
 
@@ -177,13 +177,13 @@ export function calculatePositionSize(
   const distDca1 = hasDca1 ? (dca1Price! - stopLossPrice) / dca1Price! : 0;
   const distDca2 = hasDca2 ? (dca2Price! - stopLossPrice) / dca2Price! : 0;
 
-  // Fee and slippage rates
-  const makerFeeRate = (costs?.makerFeePercent ?? DEFAULT_EXECUTION_COSTS.makerFeePercent) / 100;
-  const takerFeeRate = (costs?.takerFeePercent ?? DEFAULT_EXECUTION_COSTS.takerFeePercent) / 100;
+  // Execution costs (fees removed: cannot predict exact fee schedules across VIP tiers / promotions)
+  const makerFeeRate = 0;
+  const takerFeeRate = 0;
   const slippageRate = (costs?.slippagePercent ?? DEFAULT_EXECUTION_COSTS.slippagePercent) / 100;
 
-  // Roundtrip execution cost: maker entry + taker stop loss + slippage on stop loss
-  const roundtripCost = makerFeeRate + takerFeeRate + slippageRate;
+  // Roundtrip execution cost: market exit slippage
+  const roundtripCost = slippageRate;
 
   // ─── 3. Capital Weighting ─────────────────────────────────────────
   let weights: { entry: number; dca1: number; dca2: number };
@@ -255,15 +255,12 @@ export function calculatePositionSize(
     2
   );
 
-  const estimatedFeeCostUsdt = round(
-    maxDeployed * (makerFeeRate + takerFeeRate),
-    2
-  );
+  const estimatedFeeCostUsdt = 0;
 
   const estimatedSlippageCostUsdt = round(maxDeployed * slippageRate, 2);
 
   const plannedLossAtSlUsdt = round(
-    rawPriceLossUsdt + estimatedFeeCostUsdt + estimatedSlippageCostUsdt,
+    rawPriceLossUsdt + estimatedSlippageCostUsdt,
     2
   );
 
@@ -322,8 +319,8 @@ export function calculatePositionSize(
       const allocatedPortionUsdt = maxDeployed * item.portion;
       const grossProfit = allocatedPortionUsdt * gainPercent;
       const exitValue = allocatedPortionUsdt * (1 + gainPercent);
-      const exitFee = exitValue * takerFeeRate;
-      const netProfit = round(grossProfit - exitFee, 2);
+      const exitFee = 0;
+      const netProfit = round(grossProfit, 2);
 
       const rMult = plannedLossAtSlUsdt > 0 ? round(netProfit / plannedLossAtSlUsdt, 2) : 0;
 

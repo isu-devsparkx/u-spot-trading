@@ -32,10 +32,10 @@ export interface EvaluationConfig {
   spreadRate?: number;   // Default: 0.02% (0.0002)
 }
 
-/** Default fee and slippage settings for Binance Spot */
+/** Default execution settings (fees excluded as exact rates vary across VIP tiers and promotions) */
 export const DEFAULT_EVALUATION_CONFIG: Required<EvaluationConfig> = {
-  makerFeeRate: 0.0010, // 0.10% standard spot maker
-  takerFeeRate: 0.0010, // 0.10% standard spot taker
+  makerFeeRate: 0,
+  takerFeeRate: 0,
   slippageRate: 0.0005, // 0.05% estimated slippage
   spreadRate: 0.0002,   // 0.02% average spread
 };
@@ -313,14 +313,13 @@ export function calculateNetPnl(
 
   const grossPnlUsdt = deployedCapital * (grossReturnPct / 100);
 
-  // Round-trip fees: maker entry + taker exit
-  const totalFeeRate = cfg.makerFeeRate + cfg.takerFeeRate;
-  const feesUsdt = deployedCapital * totalFeeRate;
+  // Fees removed per requirement: exact fees cannot be predetermined across user accounts
+  const feesUsdt = 0;
 
   // Slippage applied on trade volume
   const slippageUsdt = deployedCapital * cfg.slippageRate;
 
-  const netPnlUsdt = grossPnlUsdt - feesUsdt - slippageUsdt;
+  const netPnlUsdt = grossPnlUsdt - slippageUsdt;
   const realizedReturnPercent = (netPnlUsdt / deployedCapital) * 100;
 
   return {
@@ -634,7 +633,7 @@ export function generatePostTradeReport(
       `## Realized Outcome`,
       `Realized R: ${evaluation.realizedR !== undefined && evaluation.realizedR !== null && evaluation.realizedR > 0 ? `+${evaluation.realizedR.toFixed(2)}R` : `${evaluation.realizedR ?? 0}R`}`,
       `Net P&L: ${evaluation.netPnlUsdt !== undefined && evaluation.netPnlUsdt !== null && evaluation.netPnlUsdt > 0 ? `+$${evaluation.netPnlUsdt.toFixed(2)}` : `$${evaluation.netPnlUsdt ?? 0}`}`,
-      `Fees: $${(evaluation.feesUsdt ?? 0).toFixed(2)} | Slippage: $${(evaluation.slippageUsdt ?? 0).toFixed(2)}`,
+      `Slippage: $${(evaluation.slippageUsdt ?? 0).toFixed(2)}`,
       ``,
       `## MFE / MAE`,
       `MFE: +${(evaluation.mfe ?? 0).toFixed(2)}%`,
@@ -674,7 +673,7 @@ export function generatePostTradeReport(
     `## Realized Outcome`,
     `Realized R: ${evaluation.realizedR ?? -1.0}R`,
     `Net P&L: -$${Math.abs(evaluation.netPnlUsdt ?? 0).toFixed(2)}`,
-    `Fees: $${(evaluation.feesUsdt ?? 0).toFixed(2)} | Slippage: $${(evaluation.slippageUsdt ?? 0).toFixed(2)}`,
+    `Slippage: $${(evaluation.slippageUsdt ?? 0).toFixed(2)}`,
     ``,
     `## MFE / MAE`,
     `MFE: +${(evaluation.mfe ?? 0).toFixed(2)}%`,

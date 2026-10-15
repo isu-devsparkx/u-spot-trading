@@ -525,11 +525,11 @@ export default function StrategyLabPage() {
               </div>
 
               <div className="glass-card rounded-xl p-4 border border-[var(--glass-border)]">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Total Frictions</span>
-                <span className="text-lg font-mono font-bold text-amber-400 block mt-1">
-                  ${result.totalFeesUsdt.toFixed(2)}
+                <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Profit Factor</span>
+                <span className="text-lg font-mono font-bold text-cyan-400 block mt-1">
+                  {stats?.profitFactor != null ? stats.profitFactor.toFixed(2) : '—'}
                 </span>
-                <span className="text-[10px] text-slate-500 block mt-0.5">0.1% fees + slippage</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Gross gains / losses</span>
               </div>
             </div>
 
@@ -674,7 +674,7 @@ export default function StrategyLabPage() {
                         <th className="py-2.5 px-3">Result</th>
                         <th className="py-2.5 px-3 text-right">Realized R</th>
                         <th className="py-2.5 px-3 text-right">Gross P&L</th>
-                        <th className="py-2.5 px-3 text-right">Fees & Slip</th>
+                        <th className="py-2.5 px-3 text-right">Slip & Spread</th>
                         <th className="py-2.5 px-3 text-right">Net P&L</th>
                         <th className="py-2.5 px-3 text-right">Bars</th>
                       </tr>
@@ -725,7 +725,7 @@ export default function StrategyLabPage() {
                               ${t.grossPnlUsdt.toFixed(2)}
                             </td>
                             <td className="py-3 px-3 text-right text-amber-400">
-                              ${(t.feesUsdt + t.slippageUsdt + t.spreadUsdt).toFixed(2)}
+                              ${(t.slippageUsdt + t.spreadUsdt).toFixed(2)}
                             </td>
                             <td
                               className={`py-3 px-3 text-right font-bold ${

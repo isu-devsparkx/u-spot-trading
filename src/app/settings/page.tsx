@@ -292,74 +292,22 @@ export default function SettingsPage() {
           <PositionSizeCalculator />
         </div>
 
-        {/* Execution Fees & Slippage Settings */}
+        {/* Execution Slippage Settings */}
         <div className="glass-card rounded-2xl p-6 animate-fade-in-delay-3 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <Sliders size={16} className="text-cyan-400" />
             <h2 className="text-sm font-semibold text-slate-200">
-              Execution Costs & Slippage (Spec Section 32)
+              Execution Model & Slippage Buffer
             </h2>
           </div>
           <p className="text-xs text-slate-500">
-            Never show gross profit as net profit. Round-trip trading fees and slippage are factored into position sizing.
+            Exchange trading fees are excluded as exact schedules vary across VIP tiers and promotions. Slippage is modeled to account for fill variance on stop orders.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
             <div>
               <label className="block text-xs text-slate-400 mb-1.5">
-                Maker Fee (%)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={costs.makerFeePercent}
-                  onChange={(e) => {
-                    updateCosts({ makerFeePercent: parseFloat(e.target.value) || 0 });
-                    triggerSaved();
-                  }}
-                  className="w-full bg-[var(--surface-3)] border border-[var(--glass-border)] rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-200 focus:outline-none focus:border-cyan-500/50"
-                  step={0.01}
-                  min={0}
-                  max={2}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">
-                  %
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                Standard Binance spot: 0.10%
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1.5">
-                Taker Fee (%)
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={costs.takerFeePercent}
-                  onChange={(e) => {
-                    updateCosts({ takerFeePercent: parseFloat(e.target.value) || 0 });
-                    triggerSaved();
-                  }}
-                  className="w-full bg-[var(--surface-3)] border border-[var(--glass-border)] rounded-xl px-3.5 py-2.5 text-sm font-mono text-slate-200 focus:outline-none focus:border-cyan-500/50"
-                  step={0.01}
-                  min={0}
-                  max={2}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">
-                  %
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                Market orders / Stop Loss exit
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1.5">
-                Estimated Slippage (%)
+                Estimated Slippage Buffer (%)
               </label>
               <div className="relative">
                 <input
@@ -379,7 +327,14 @@ export default function SettingsPage() {
                 </span>
               </div>
               <span className="text-[10px] text-slate-500 mt-1 block">
-                Market fill variance on SL triggers
+                Fill variance cushion on Stop Loss liquidations
+              </span>
+            </div>
+
+            <div className="flex flex-col justify-center bg-[var(--surface-2)]/40 border border-[var(--glass-border)]/50 rounded-xl p-3 text-xs text-slate-400">
+              <span className="font-semibold text-slate-200 mb-0.5">Fee-Free P&L Calculations</span>
+              <span className="text-[11px] text-slate-500">
+                Gross and net P&L calculations reflect pure price movement without arbitrary exchange fee estimations.
               </span>
             </div>
           </div>

@@ -188,7 +188,7 @@ describe('Phase 10: Realized R & PnL Accounting (Spec Sections 16, 18, 32)', () 
     assert.strictEqual(grossReturnPct, 0);
   });
 
-  test('calculates Net P&L factoring in maker/taker fees and slippage (Spec Section 32)', () => {
+  test('calculates Net P&L factoring in slippage without arbitrary fees', () => {
     const deployedCapital = 100; // 100 USDT
     const grossReturnPct = 10;   // +10% gross profit ($10)
     const { grossPnlUsdt, netPnlUsdt, feesUsdt, slippageUsdt } = calculateNetPnl(
@@ -198,12 +198,12 @@ describe('Phase 10: Realized R & PnL Accounting (Spec Sections 16, 18, 32)', () 
     );
 
     assert.strictEqual(grossPnlUsdt, 10.0);
-    // Total fees: 0.10% maker + 0.10% taker = 0.20% = $0.20
-    assert.strictEqual(feesUsdt, 0.2);
+    // Fees are 0 (removed as exact rates vary)
+    assert.strictEqual(feesUsdt, 0);
     // Slippage: 0.05% = $0.05
     assert.strictEqual(slippageUsdt, 0.05);
-    // Net PnL = 10.00 - 0.20 - 0.05 = $9.75
-    assert.strictEqual(netPnlUsdt, 9.75);
+    // Net PnL = 10.00 - 0.05 = $9.95
+    assert.strictEqual(netPnlUsdt, 9.95);
   });
 
   test('accounts for volume-weighted DCA entry in average entry price', () => {
@@ -437,7 +437,7 @@ describe('Phase 10: End-to-End evaluateSignalOutcome Orchestration', () => {
     assert.strictEqual(evaluation.realizedR, 2.1);
     assert.strictEqual(evaluation.grossPnlUsdt, 10.5);
     assert.ok(evaluation.netPnlUsdt! > 10.0);
-    assert.ok(evaluation.feesUsdt! > 0);
+    assert.strictEqual(evaluation.feesUsdt, 0);
     assert.ok(evaluation.timeToEvent.timeToEntryMs! >= 0);
     assert.ok(evaluation.timeToEvent.timeToTp1Ms! >= 0);
     assert.ok(evaluation.evaluationText.length > 50);

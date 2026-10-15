@@ -515,7 +515,7 @@ export default function PositionSizeCalculator({
                 {formatUsd(calcResult.plannedLossAtSlUsdt)}
               </span>
               <span className="text-[10px] text-slate-500 block">
-                incl. fees & slippage
+                Planned max risk
               </span>
             </div>
           </div>
@@ -635,7 +635,7 @@ export default function PositionSizeCalculator({
           {/* Execution Cost Footnote */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-500 pt-3 border-t border-[var(--glass-border)] gap-2">
             <span>
-              Calculated with {costs.makerFeePercent}% maker fee, {costs.takerFeePercent}% taker fee, {costs.slippagePercent}% slippage.
+              Calculated with structural price movement & volatility-adjusted risk sizing.
             </span>
             <span className="text-cyan-400 font-medium">
               Section 14 & 51 compliant

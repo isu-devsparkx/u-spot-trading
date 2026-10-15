@@ -207,9 +207,9 @@ function ExpandedRow({ record }: { record: SignalHistoryRecord }) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-[var(--surface-2)]/60 rounded-lg p-2 text-center">
-                    <p className="text-[10px] text-slate-500">Fees</p>
+                    <p className="text-[10px] text-slate-500">Capital</p>
                     <p className="font-mono text-slate-400 text-xs">
-                      {record.fees !== null ? formatUsd(record.fees!) : '—'}
+                      {record.maxDeployed ? formatUsd(record.maxDeployed) : '—'}
                     </p>
                   </div>
                   <div className="bg-[var(--surface-2)]/60 rounded-lg p-2 text-center">
